@@ -25,17 +25,20 @@ A 64-bit TF2 client plugin plus a Node.js companion bridge app.
 5. Join the playback relay's SourceTV. With an active progress feed, add binds. E.g:
 
    ```cfg
-   bind F1 "jf_spec_rank 1"
-   bind F2 "jf_spec_rank 2"
-   bind F3 "jf_spec_rank 3"
+   bind F1 "jf_spec_rank 1";
+   bind F2 "jf_spec_rank 2";
+   bind F3 "jf_spec_rank 3";
    // jf_spec_rank <N>
+   ```
 
+   ```cfg
    // Last place:
-   bind F4 "jf_spec_last"
+   bind F4 "jf_spec_last";
+   ```
 
-
-   bind F5 "jf_spec_prev_rank"
-   bind F6 "jf_spec_next_rank"
+   ```cfg
+   bind F5 "jf_spec_prev_rank";
+   bind F6 "jf_spec_next_rank";
    ```
 
 Switching is manual: each key picks from the latest progress ranking. An empty,

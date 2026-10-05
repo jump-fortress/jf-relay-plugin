@@ -1,0 +1,50 @@
+cmake_minimum_required(VERSION 3.24)
+project(jf_spec LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(SOURCE_SDK_ROOT "" CACHE PATH "Valve source-sdk-2013 checkout")
+if(NOT EXISTS "${SOURCE_SDK_ROOT}/src/public/cdll_int.h")
+  message(FATAL_ERROR "Set SOURCE_SDK_ROOT to a source-sdk-2013 checkout")
+endif()
+if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+  message(FATAL_ERROR "This project targets the current 64-bit TF2 client")
+endif()
+
+set(SDK "${SOURCE_SDK_ROOT}/src")
+add_library(jf_spec SHARED src/plugin.cpp src/ranking.cpp src/ipc.cpp
+  ${SDK}/tier1/convar.cpp ${SDK}/tier1/tier1.cpp ${SDK}/tier1/interface.cpp
+  ${SDK}/tier1/strtools.cpp ${SDK}/tier1/strtools_unicode.cpp
+  ${SDK}/tier1/utlbuffer.cpp ${SDK}/tier1/utlstring.cpp
+  ${SDK}/tier1/characterset.cpp)
+target_include_directories(jf_spec PRIVATE ${SDK}/public ${SDK}/public/tier0
+  ${SDK}/public/tier1 ${SDK}/common)
+target_compile_definitions(jf_spec PRIVATE CLIENT_DLL TIER1_STATIC_LIB
+  RAD_TELEMETRY_DISABLED _CRT_SECURE_NO_WARNINGS)
+set_target_properties(jf_spec PROPERTIES PREFIX "" BUILD_RPATH "" INSTALL_RPATH "")
+if(WIN32)
+  target_compile_options(jf_spec PRIVATE /utf-8)
+  target_compile_definitions(jf_spec PRIVATE WIN32 WIN64 COMPILER_MSVC COMPILER_MSVC64 _WINDOWS)
+  target_link_libraries(jf_spec PRIVATE ${SDK}/lib/public/x64/tier0.lib
+    ${SDK}/lib/public/x64/vstdlib.lib advapi32)
+else()
+  target_sources(jf_spec PRIVATE ${SDK}/tier1/qsort_s.cpp)
+  target_compile_definitions(jf_spec PRIVATE GNUC POSIX _POSIX LINUX _LINUX)
+  target_compile_options(jf_spec PRIVATE -fPIC -fvisibility=hidden -Wno-register)
+  target_link_directories(jf_spec PRIVATE ${SDK}/lib/public/linux64)
+  target_link_libraries(jf_spec PRIVATE tier0 vstdlib pthread dl)
+  set_target_properties(jf_spec PROPERTIES SKIP_BUILD_RPATH TRUE)
+  target_link_options(jf_spec PRIVATE -Wl,--no-undefined)
+endif()
+
+enable_testing()
+add_executable(ranking_test tests/ranking_test.cpp src/ranking.cpp)
+target_include_directories(ranking_test PRIVATE src)
+add_test(NAME ranking COMMAND ranking_test)
+add_executable(ipc_test tests/ipc_test.cpp src/ipc.cpp src/ranking.cpp)
+target_include_directories(ipc_test PRIVATE src)
+if(WIN32)
+  target_link_libraries(ipc_test PRIVATE advapi32)
+else()
+  target_link_libraries(ipc_test PRIVATE pthread)
+endif()
+add_test(NAME ipc COMMAND ipc_test)

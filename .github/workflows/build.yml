@@ -1,0 +1,38 @@
+name: Build and test
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: ValveSoftware/source-sdk-2013
+          ref: 22288b919617be6c8ca3cefd7cca979cbb39a88c
+          path: sdk
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Companion tests
+        working-directory: companion
+        run: npm test
+      - name: Configure
+        run: cmake -S . -B build -DSOURCE_SDK_ROOT=${{ github.workspace }}/sdk -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      - name: Build
+        run: cmake --build build --config RelWithDebInfo --parallel 2
+      - name: Native tests
+        run: ctest --test-dir build -C RelWithDebInfo --output-on-failure
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jf-spec-${{ matrix.os }}-x64
+          path: |
+            build/**/jf_spec.dll
+            build/**/jf_spec.pdb
+            build/jf_spec.so
+          if-no-files-found: error

@@ -16,7 +16,7 @@ int main() {
     if (!ipc.Start()) return 1;
 
 #ifdef _WIN32
-    HANDLE client = CreateFileA("\\\\.\\pipe\\jf-spec", GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
+    HANDLE client = CreateFileA("\\\\.\\pipe\\jf-spec-A", GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
     if (client == INVALID_HANDLE_VALUE) return 2;
     const char message[] = "JF1 jump_rush 123 456\n";
     DWORD sent = 0;
@@ -25,7 +25,7 @@ int main() {
     const int client = socket(AF_UNIX, SOCK_STREAM, 0);
     sockaddr_un address{};
     address.sun_family = AF_UNIX;
-    const auto path = "/tmp/jf-spec-" + std::to_string(getuid()) + "/rankings.sock";
+    const auto path = "/tmp/jf-spec-" + std::to_string(getuid()) + "/rankings-A.sock";
     path.copy(address.sun_path, sizeof(address.sun_path) - 1);
     if (connect(client, reinterpret_cast<sockaddr*>(&address), sizeof(address))) return 2;
     const char message[] = "JF1 jump_rush 123 456\n";
@@ -36,6 +36,11 @@ int main() {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
     if (ranking.Read().userids.size() != 2) return 4;
+
+    Ranking otherRanking;
+    Ipc other(otherRanking);
+    if (!other.Start('B') || !otherRanking.Read().map.empty()) return 7;
+    other.Stop();
 
 #ifdef _WIN32
     CloseHandle(client);

@@ -7,7 +7,7 @@ class Ipc {
 public:
     explicit Ipc(Ranking& ranking) : ranking_(ranking) {}
     ~Ipc() { Stop(); }
-    bool Start();
+    bool Start(char instance = 'A');
     void Stop();
 private:
     void Run();
@@ -15,4 +15,5 @@ private:
     std::atomic<bool> stopping_{true};
     std::atomic<int> startup_{0};
     std::thread worker_;
+    char instance_ = 'A';
 };

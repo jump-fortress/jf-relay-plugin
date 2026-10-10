@@ -45,3 +45,8 @@ Switching is manual: each key picks from the latest progress ranking. An empty,
 stale or wrong-map feed leaves the camera unchanged. `jf_spec_status` helps diagnose
 the plugin. The companion console should report both progress and IPC connections.
 
+## Multiple instances and overlay selections
+
+Run one companion. Launch games with `-jf_spec_instance A`, `-jf_spec_instance B`,
+and so on through F. The default is A; each running game needs a unique letter.
+The companion connects to each instance's local pipe/socket and shares rankings.

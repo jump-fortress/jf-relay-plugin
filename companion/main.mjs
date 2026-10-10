@@ -1,5 +1,5 @@
 import net from 'node:net';
-import { encodeSnapshot } from './protocol.mjs';
+import { encodeSnapshot, instances, selections } from './protocol.mjs';
 
 const { PROGRESS_URL, PROGRESS_TOKEN, RELAY_SERVER_CODE } = process.env;
 
@@ -16,24 +16,25 @@ if (url.protocol !== 'wss:') {
 url.searchParams.set('token', PROGRESS_TOKEN);
 url.searchParams.set('channel', 'progress');
 
-const endpoint = process.platform === 'win32'
-  ? '\\\\.\\pipe\\jf-spec'
-  : `/tmp/jf-spec-${process.getuid()}/rankings.sock`;
+const endpoint = instance => process.platform === 'win32'
+  ? `\\\\.\\pipe\\jf-spec-${instance}`
+  : `/tmp/jf-spec-${process.getuid()}/rankings-${instance}.sock`;
 
-let pipe;
+const pipes = new Map();
+const pipeReconnects = new Map();
+
+let snapshot;
 let socket;
 
 let latest = 'CLEAR\n';
 let lastSnapshotAt = 0;
 
 let stopping = false;
-let pipeReconnect;
 let websocketReconnect;
 let retries = 0;
-let lastPipeError = '';
 let receivedSnapshot = false;
 
-function publish() {
+function send(pipe, line) {
   if (!pipe || pipe.destroyed || pipe.connecting) return;
 
   // A stalled local consumer should reconnect, not accumulate an unbounded queue.
@@ -42,35 +43,45 @@ function publish() {
     return;
   }
 
-  pipe.write(latest);
+  pipe.write(line);
+}
+
+function publish() {
+  for (const pipe of pipes.values()) send(pipe, latest);
 }
 
 function clear() {
   latest = 'CLEAR\n';
   lastSnapshotAt = 0;
+  snapshot = undefined;
+
   publish();
 }
 
-function connectPipe() {
+function connectPipe(instance) {
   if (stopping) return;
 
-  pipe = net.createConnection(endpoint);
+  const pipe = net.createConnection(endpoint(instance));
+  pipes.set(instance, pipe);
+
   pipe.on('connect', () => {
-    lastPipeError = '';
-    console.log('Connected to TF2 plugin IPC');
-    publish();
+    console.log(`Connected to TF2 instance ${instance}`);
+    send(pipe, latest);
   });
 
   // TF2 may not be running yet; the close handler schedules another attempt.
   pipe.on('error', error => {
-    const message = `${error.code ?? 'UNKNOWN'}: ${error.message}`;
-    if (message === lastPipeError) return;
-
-    lastPipeError = message;
-    console.warn(`TF2 plugin IPC failed (${endpoint}): ${message}`);
+    if (!['ENOENT', 'ECONNREFUSED', 'EBUSY'].includes(error.code)) {
+      console.warn(`TF2 instance ${instance}: ${error.message}`);
+    }
   });
+
   pipe.on('close', () => {
-    if (!stopping) pipeReconnect = setTimeout(connectPipe, 1000);
+    pipes.delete(instance);
+
+    if (!stopping) {
+      pipeReconnects.set(instance, setTimeout(() => connectPipe(instance), 1000));
+    }
   });
 }
 
@@ -97,6 +108,11 @@ function connectWebSocket() {
 
       const value = JSON.parse(event.data);
 
+      if (value.type === 'spectator_select') {
+        selectPlayers(value);
+        return;
+      }
+
       if (value.type === 'relay_progress_reset') {
         clear();
         return;
@@ -111,7 +127,9 @@ function connectWebSocket() {
       }
 
       latest = line;
+      snapshot = value;
       lastSnapshotAt = Date.now();
+
       publish();
     } catch {
       console.warn('Rejected invalid progress message');
@@ -135,6 +153,25 @@ function connectWebSocket() {
   });
 }
 
+function selectPlayers(value) {
+  try {
+    const current = lastSnapshotAt && Date.now() - lastSnapshotAt < 15000 ? snapshot : undefined;
+
+    for (const selection of selections(value, current, RELAY_SERVER_CODE)) {
+      const pipe = pipes.get(selection.instance);
+
+      if (selection.error || !pipe || pipe.destroyed || pipe.connecting) {
+        console.warn(`${selection.instance}: ${selection.error ?? 'Game not connected'}`);
+        continue;
+      }
+
+      send(pipe, selection.line);
+    }
+  } catch (error) {
+    console.warn(`Selection rejected: ${error.message}`);
+  }
+}
+
 const watchdog = setInterval(() => {
   if (lastSnapshotAt && Date.now() - lastSnapshotAt >= 15000) {
     clear();
@@ -147,11 +184,12 @@ function stop() {
 
   stopping = true;
   clearInterval(watchdog);
-  clearTimeout(pipeReconnect);
+  for (const timer of pipeReconnects.values()) clearTimeout(timer);
   clearTimeout(websocketReconnect);
 
   clear();
-  pipe?.end();
+
+  for (const pipe of pipes.values()) pipe.end();
   socket?.close();
 
   setTimeout(() => process.exit(0), 500).unref();
@@ -160,5 +198,5 @@ function stop() {
 process.once('SIGINT', stop);
 process.once('SIGTERM', stop);
 
-connectPipe();
+for (const instance of instances) connectPipe(instance);
 connectWebSocket();

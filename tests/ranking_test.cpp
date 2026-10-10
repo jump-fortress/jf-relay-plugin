@@ -7,6 +7,16 @@ int main() {
     Ranking ranking;
     Check(ranking.Update("JF1 jump_rush 123 456 789"));
     Check(ranking.Read().userids.size() == 3);
+    Check(ranking.Update("SELECT 456"));
+    Check(ranking.TakeSelection() == 456);
+    Check(ranking.TakeSelection() == 0);
+    Check(ranking.Update("SELECT 999"));
+    Check(ranking.TakeSelection() == 0);
+    Check(!ranking.Update("SELECT 123;quit"));
+    Check(ranking.Update("SELECT 123"));
+    Check(ranking.Update("CLEAR"));
+    Check(ranking.TakeSelection() == 0);
+    Check(ranking.Update("JF1 jump_rush 123 456 789"));
     Check(RelativeRank({456, 123, 789}, 123, 1, 1) == 3);
     Check(RelativeRank({456, 123, 789}, 123, 1, -1) == 1);
     Check(RelativeRank({123}, 0, 0, 1) == 1);

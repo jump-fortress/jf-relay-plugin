@@ -1,4 +1,5 @@
 #include "ipc.h"
+#include "tick-panel.h"
 #include <algorithm>
 #include <charconv>
 #include <cstdio>
@@ -10,11 +11,13 @@
 #include <icvar.h>
 #include <tier1/convar.h>
 #include <tier1/tier1.h>
+#include <tier0/icommandline.h>
 
 namespace {
 IVEngineClient* engineClient = nullptr;
 Ranking ranking;
 Ipc ipc(ranking);
+TickPanel tickPanel;
 int lastUserid = 0;
 int lastRank = 0;
 bool paused = false;
@@ -78,7 +81,11 @@ void Select(const Snapshot& snapshot, int rank) {
 
 void RankCommand(const CCommand& args) {
     int rank = 0;
-    if (args.ArgC() != 2) { Msg("Usage: jf_spec_rank <positive rank>\n"); return; }
+    if (args.ArgC() != 2) {
+        Msg("Usage: jf_spec_rank <positive rank>\n");
+        return;
+    }
+
     const std::string value = args.Arg(1);
     const auto parsed = std::from_chars(value.data(), value.data() + value.size(), rank);
     if (parsed.ec != std::errc{} || parsed.ptr != value.data() + value.size() || rank < 1) {
@@ -113,6 +120,19 @@ void StatusCommand() {
         snapshot.map.c_str(), static_cast<int>(snapshot.userids.size()), age, lastUserid, lastRank, paused);
 }
 
+void ConsumeSelection() {
+    const int userid = ranking.TakeSelection();
+    if (!userid) return;
+
+    Snapshot snapshot;
+    if (!Current(snapshot)) return;
+
+    const auto found = std::find(snapshot.userids.begin(), snapshot.userids.end(), userid);
+    if (found != snapshot.userids.end()) {
+        Select(snapshot, static_cast<int>(found - snapshot.userids.begin()) + 1);
+    }
+}
+
 ConCommand rankCommand("jf_spec_rank", RankCommand, "Spectate current competition rank N");
 ConCommand nextCommand("jf_spec_next_rank", NextCommand, "Spectate next competition rank");
 ConCommand prevCommand("jf_spec_prev_rank", PrevCommand, "Spectate previous competition rank");
@@ -124,32 +144,46 @@ class JfSpecPlugin final : public IServerPluginCallbacks {
 public:
     bool Load(CreateInterfaceFn factory, CreateInterfaceFn) override {
         if (!factory || engineClient) return false;
+
         engineClient = static_cast<IVEngineClient*>(factory(VENGINE_CLIENT_INTERFACE_VERSION, nullptr));
-        if (!engineClient) { Warning("[JF Spec] Client engine interface unavailable.\n"); return false; }
+        if (!engineClient) {
+            Warning("[JF Spec] Client engine interface unavailable.\n");
+            return false;
+        }
 
         ConnectTier1Libraries(&factory, 1);
-        if (!g_pCVar || !ipc.Start()) {
+        const char* instance = CommandLine()->ParmValue("-jf_spec_instance", "A");
+
+        if (!g_pCVar || !instance[0] || instance[1] || !ipc.Start(instance[0]) || !tickPanel.Start(factory, ConsumeSelection)) {
+            tickPanel.Stop();
+            ipc.Stop();
+
             Warning("[JF Spec] Console interface or local IPC listener unavailable (another instance or stale socket?).\n");
             DisconnectTier1Libraries();
             engineClient = nullptr;
             return false;
         }
+
         paused = false;
         lastUserid = lastRank = 0;
         ConVar_Register();
+
         Msg("     ██╗███████╗\n"
             "     ██║██╔════╝\n"
             "     ██║█████╗  \n"
             "██   ██║██╔══╝  \n"
             "╚█████╔╝██║     \n"
             " ╚════╝ ╚═╝     \n"
-            "JF Spec Extension v1 - Successfully Loaded\n");
+            "JF Spec Extension v2 - Successfully Loaded (Instance %s)\n", instance);
+
         return true;
     }
 
     void Unload() override {
+        tickPanel.Stop();
         ConVar_Unregister();
         ipc.Stop();
+
         DisconnectTier1Libraries();
         engineClient = nullptr;
         lastUserid = lastRank = 0;
@@ -161,7 +195,10 @@ public:
     void LevelInit(const char*) override {}
     void ServerActivate(edict_t*, int, int) override {}
     void GameFrame(bool) override {}
-    void LevelShutdown() override {}
+    void LevelShutdown() override {
+        ranking.Clear();
+        lastUserid = lastRank = 0;
+    }
     void ClientActive(edict_t*) override {}
     void ClientDisconnect(edict_t*) override {}
     void ClientPutInServer(edict_t*, const char*) override {}

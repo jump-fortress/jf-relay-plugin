@@ -12,15 +12,20 @@ export function encodeSnapshot(value, server) {
 
 export const instances = [...'ABCDEF'];
 
-/** @param {import('./messages.js').SpectatorSelect} value */
+/** @param {import('./messages.js').JFRelaySpectatorSelectEvent} value */
 export function selections(value, snapshot, server) {
-  if (value?.type !== 'spectator_select' || value.server_code !== server) return [];
+  if (value?.type !== 'spectator_select') return [];
+  if (value.server_code !== undefined && value.server_code !== server) return [];
+
+  if (!value.value || typeof value.value !== 'object' || Array.isArray(value.value)) {
+    throw new Error('Invalid spectator selection value');
+  }
 
   if (!snapshot || !Array.isArray(snapshot.players)) throw new Error('Progress feed unavailable');
 
   return instances.flatMap(instance => {
-    const account = value[`player${instance}`];
-    if (account === undefined) return [];
+    const account = value.value[`player${instance}`];
+    if (account === undefined || account === null) return [];
 
     if (!Number.isInteger(account) || account <= 0 || account > 2147483647) {
       throw new Error(`Invalid player${instance} account`);

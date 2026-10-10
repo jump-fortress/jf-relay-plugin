@@ -9,9 +9,17 @@ export interface RelayProgress {
   players: { userid: number; account: number; attempt: number; level: number }[];
 }
 
-export type SpectatorSelect = {
-  type: 'spectator_select';
-  server_code: string;
-} & Partial<Record<`player${Instance}`, number>>;
+export interface JFRelayEvent {
+  type: string;
+  server_code?: string;
+}
 
-export type FeedMessage = RelayProgress | SpectatorSelect;
+export interface JFRelaySpectatorSelectEvent extends JFRelayEvent {
+  type: 'spectator_select';
+  value: {
+    playerA: number | null;
+    playerB: number | null;
+  } & Partial<Record<`player${Exclude<Instance, 'A' | 'B'>}`, number | null>>;
+}
+
+export type FeedMessage = RelayProgress | JFRelaySpectatorSelectEvent;

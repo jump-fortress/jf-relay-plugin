@@ -7,7 +7,22 @@ export function encodeSnapshot(value, server) {
     throw new Error('Invalid progress snapshot');
   }
 
-  return `JF1 ${value.map}${value.userids.length ? ' ' + value.userids.join(' ') : ''}\n`;
+  if (!Array.isArray(value.players) || value.players.length > 100
+      || value.players.some(player => !player || typeof player.running !== 'boolean')) {
+    throw new Error('Invalid selectable players');
+  }
+
+  const selectable = value.players.map(player => player.userid);
+  const running = value.players.filter(player => player.running).map(player => player.userid);
+  if (selectable.length > 100
+      || selectable.some(id => !Number.isInteger(id) || id <= 0 || id > 2147483647)
+      || new Set(selectable).size !== selectable.length
+      || running.length !== value.userids.length
+      || running.some((id, index) => id !== value.userids[index])) {
+    throw new Error('Invalid selectable players');
+  }
+
+  return `JF2 ${value.map} ${value.userids.join(' ')} | ${selectable.join(' ')}\n`;
 }
 
 export const instances = [...'ABCDEF'];
@@ -33,8 +48,8 @@ export function selections(value, snapshot) {
     const matches = snapshot.players.filter(player => player.account === account);
     const userid = matches.length === 1 ? matches[0].userid : null;
 
-    if (!Number.isInteger(userid) || !snapshot.userids.includes(userid)) {
-      return [{ instance, error: `Account ${account} is not an active runner` }];
+    if (!Number.isInteger(userid) || userid <= 0 || userid > 2147483647) {
+      return [{ instance, error: `Account ${account} is not a selectable relay bot` }];
     }
 
     return [{ instance, line: `SELECT ${userid}\n` }];

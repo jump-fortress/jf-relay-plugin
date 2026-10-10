@@ -7,6 +7,7 @@
 struct Snapshot {
     std::string map;
     std::vector<int> userids;
+    std::vector<int> selectableUserids;
     std::chrono::steady_clock::time_point received;
 };
 

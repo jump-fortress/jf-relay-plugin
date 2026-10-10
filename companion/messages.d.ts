@@ -6,7 +6,7 @@ export interface RelayProgress {
   server_code: string;
   map: string;
   userids: number[];
-  players: { userid: number; account: number; attempt: number; level: number }[];
+  players: { userid: number; account: number; attempt: number; level: number; running: boolean }[];
 }
 
 export interface JFRelayEvent {

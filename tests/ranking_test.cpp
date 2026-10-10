@@ -31,5 +31,24 @@ int main() {
     Check(ranking.Read().userids.empty());
     Check(ranking.Update("CLEAR"));
     Check(ranking.Read().map.empty());
+
+    Check(ranking.Update("JF2 jump_rush 123 | 123 456"));
+    Check(ranking.Read().userids.size() == 1);
+    Check(ranking.Read().selectableUserids.size() == 2);
+    Check(ranking.Update("SELECT 456"));
+    Check(ranking.TakeSelection() == 456);
+    Check(ranking.TakeSelection() == 0);
+
+    Check(ranking.Update("JF2 jump_rush | 456"));
+    Check(ranking.Read().userids.empty());
+    Check(ranking.Update("SELECT 456"));
+    Check(ranking.TakeSelection() == 456);
+    Check(!ranking.Update("JF2 jump_rush 123 | 456"));
+    Check(!ranking.Update("JF2 jump_rush | 456 456"));
+    Check(!ranking.Update("JF2 jump_rush | |"));
+    Check(!ranking.Update("JF2 jump_rush 123"));
+    Check(ranking.Update("CLEAR"));
+    Check(ranking.Read().selectableUserids.empty());
+
     std::cout << "Ranking tests passed\n";
 }

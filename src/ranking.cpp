@@ -16,7 +16,8 @@ bool Ranking::Update(const std::string& line) {
         if (result.ec != std::errc{} || result.ptr != line.data() + line.size() || userid <= 0) return false;
 
         std::lock_guard<std::mutex> lock(mutex_);
-        if (std::find(snapshot_.userids.begin(), snapshot_.userids.end(), userid) == snapshot_.userids.end()) return true;
+        if (std::find(snapshot_.selectableUserids.begin(), snapshot_.selectableUserids.end(), userid)
+            == snapshot_.selectableUserids.end()) return true;
 
         selection_ = userid;
         return true;
@@ -24,27 +25,43 @@ bool Ranking::Update(const std::string& line) {
 
     std::istringstream input(line);
     std::string version, map, token;
-    if (!(input >> version >> map) || version != "JF1" || map.size() > 128
+    if (!(input >> version >> map) || (version != "JF1" && version != "JF2") || map.size() > 128
         || map.find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != std::string::npos) {
         return false;
     }
 
     std::vector<int> ids;
+    std::vector<int> selectable;
+    bool separator = false;
     std::set<int> unique;
     while (input >> token) {
+        if (token == "|" && version == "JF2" && !separator) {
+            separator = true;
+            unique.clear();
+            continue;
+        }
+
+        auto& destination = separator ? selectable : ids;
         int id = 0;
         const auto result = std::from_chars(token.data(), token.data() + token.size(), id);
         if (result.ec != std::errc{} || result.ptr != token.data() + token.size()
-            || id <= 0 || !unique.insert(id).second || ids.size() >= 100) {
+            || id <= 0 || !unique.insert(id).second || destination.size() >= 100) {
             return false;
         }
-        ids.push_back(id);
+        destination.push_back(id);
+    }
+
+    if (version == "JF1") selectable = ids;
+    else if (!separator) return false;
+
+    for (int id : ids) {
+        if (std::find(selectable.begin(), selectable.end(), id) == selectable.end()) return false;
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
     if (snapshot_.map != map) selection_ = 0;
 
-    snapshot_ = {map, ids, std::chrono::steady_clock::now()};
+    snapshot_ = {map, ids, selectable, std::chrono::steady_clock::now()};
     return true;
 }
 

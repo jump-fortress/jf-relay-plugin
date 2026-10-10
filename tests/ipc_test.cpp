@@ -18,7 +18,7 @@ int main() {
 #ifdef _WIN32
     HANDLE client = CreateFileA("\\\\.\\pipe\\jf-spec-A", GENERIC_READ | GENERIC_WRITE, 0, nullptr, OPEN_EXISTING, 0, nullptr);
     if (client == INVALID_HANDLE_VALUE) return 2;
-    const char message[] = "JF1 jump_rush 123 456\n";
+    const char message[] = "JF2 jump_rush 123 456 | 123 456 789\nSELECT 789\n";
     DWORD sent = 0;
     if (!WriteFile(client, message, sizeof(message) - 1, &sent, nullptr)) return 3;
 #else
@@ -28,7 +28,7 @@ int main() {
     const auto path = "/tmp/jf-spec-" + std::to_string(getuid()) + "/rankings-A.sock";
     path.copy(address.sun_path, sizeof(address.sun_path) - 1);
     if (connect(client, reinterpret_cast<sockaddr*>(&address), sizeof(address))) return 2;
-    const char message[] = "JF1 jump_rush 123 456\n";
+    const char message[] = "JF2 jump_rush 123 456 | 123 456 789\nSELECT 789\n";
     if (write(client, message, sizeof(message) - 1) != sizeof(message) - 1) return 3;
 #endif
 
@@ -36,6 +36,14 @@ int main() {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }
     if (ranking.Read().userids.size() != 2) return 4;
+
+    int selected = 0;
+    for (int wait = 0; wait < 100 && !selected; ++wait) {
+        selected = ranking.TakeSelection();
+        if (!selected) std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    if (ranking.Read().selectableUserids.size() != 3 || selected != 789) return 8;
+    if (ranking.TakeSelection() != 0) return 9;
 
     Ranking otherRanking;
     Ipc other(otherRanking);

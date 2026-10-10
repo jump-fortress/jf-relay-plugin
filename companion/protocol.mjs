@@ -13,9 +13,8 @@ export function encodeSnapshot(value, server) {
 export const instances = [...'ABCDEF'];
 
 /** @param {import('./messages.js').JFRelaySpectatorSelectEvent} value */
-export function selections(value, snapshot, server) {
+export function selections(value, snapshot) {
   if (value?.type !== 'spectator_select') return [];
-  if (value.server_code !== undefined && value.server_code !== server) return [];
 
   if (!value.value || typeof value.value !== 'object' || Array.isArray(value.value)) {
     throw new Error('Invalid spectator selection value');

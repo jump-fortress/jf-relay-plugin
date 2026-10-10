@@ -11,20 +11,19 @@ test('snapshot preserves rank order and filters publishers', () => {
 
 test('account selections route independently to A through F', () => {
   const snapshot = { userids: [42, 17], players: [{ userid: 42, account: 123 }, { userid: 17, account: 456 }] };
-  const value = { type: 'spectator_select', server_code: 'LA', value: { playerA: 456, playerB: null, playerF: 123 } };
-  assert.deepEqual(selections(value, snapshot, 'LA'), [
+  const value = { type: 'spectator_select', value: { playerA: 456, playerB: null, playerF: 123 } };
+  assert.deepEqual(selections(value, snapshot), [
     { instance: 'A', line: 'SELECT 17\n' },
     { instance: 'F', line: 'SELECT 42\n' },
   ]);
-  assert.deepEqual(selections(value, snapshot, 'OTHER'), []);
-  assert.throws(() => selections(value, undefined, 'LA'));
-  assert.throws(() => selections({ ...value, value: { playerA: '123;quit', playerB: null } }, snapshot, 'LA'));
-  assert.equal(selections({ ...value, value: { playerA: 999, playerB: null } }, snapshot, 'LA')[0].error, 'Account 999 is not an active runner');
-  assert.deepEqual(selections({ type: 'spectator_select', value: { playerA: 123, playerB: null } }, snapshot, 'LA'), [
+  assert.throws(() => selections(value, undefined));
+  assert.throws(() => selections({ ...value, value: { playerA: '123;quit', playerB: null } }, snapshot));
+  assert.equal(selections({ ...value, value: { playerA: 999, playerB: null } }, snapshot)[0].error, 'Account 999 is not an active runner');
+  assert.deepEqual(selections({ type: 'spectator_select', value: { playerA: 123, playerB: null } }, snapshot), [
     { instance: 'A', line: 'SELECT 42\n' },
   ]);
-  assert.deepEqual(selections({ type: 'spectator_select', value: { playerA: null, playerB: null } }, snapshot, 'LA'), []);
-  assert.throws(() => selections({ type: 'spectator_select' }, snapshot, 'LA'));
+  assert.deepEqual(selections({ type: 'spectator_select', value: { playerA: null, playerB: null } }, snapshot), []);
+  assert.throws(() => selections({ type: 'spectator_select' }, snapshot));
 });
 
 test('malformed IDs and command injection are rejected', () => {

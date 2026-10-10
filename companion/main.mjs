@@ -157,7 +157,7 @@ function selectPlayers(value) {
   try {
     const current = lastSnapshotAt && Date.now() - lastSnapshotAt < 15000 ? snapshot : undefined;
 
-    for (const selection of selections(value, current, RELAY_SERVER_CODE)) {
+    for (const selection of selections(value, current)) {
       const pipe = pipes.get(selection.instance);
 
       if (selection.error || !pipe || pipe.destroyed || pipe.connecting) {

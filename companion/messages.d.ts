@@ -11,7 +11,6 @@ export interface RelayProgress {
 
 export interface JFRelayEvent {
   type: string;
-  server_code?: string;
 }
 
 export interface JFRelaySpectatorSelectEvent extends JFRelayEvent {
